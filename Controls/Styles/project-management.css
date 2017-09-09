@@ -1,0 +1,201 @@
+﻿/* Comment Styles */
+.pm-note-user-comment {
+    background-color: #f5f5f5;
+    padding: 19px;
+    min-height: 20px;
+    margin-bottom: 20px;
+    border: 1px solid #e3e3e3;
+    border-radius: 4px;
+}
+    .pm-note-user-comment .pm-comment-name,
+    .pm-note-user-comment .pm-comment-date {
+        font-style: italic;
+    }
+
+.pm-note-system-comment {
+    margin-left: 40px;
+    background-color: #f5f5f5;
+    border-radius: 4px;
+    padding: 8px;
+    margin-bottom: 20px;
+}
+    .pm-note-system-comment .fa-border {
+        border-color: #b7b7b7;
+    }
+
+.pm-comment-photo {
+    width: 48px;
+    height: 48px;
+    border-radius: 24px;
+}
+
+.pm-comment-author {
+    margin-bottom: 10px;
+}
+
+.pm-comment-reference-project,
+.pm-comment-reference-task {
+    font-weight: bold;
+}
+
+.pm-comment {
+    padding-left: 64px;
+}
+
+.pm-comment-container .pm-delete-button {
+    visibility: hidden;
+}
+
+.pm-comment-container:hover .pm-delete-button {
+    visibility: visible;
+}
+
+.pm-comment-container p:last-child {
+    margin-bottom: 0px;
+}
+
+/* List Group Items */
+.pm-group-item.pm-inactive {
+    font-style: italic;
+    color: lightgray;
+}
+
+.pm-group-item.pm-cancelled .pm-group-item-name-container,
+.pm-group-item.pm-cancelled .pm-group-item-name,
+.pm-group-item.pm-cancelled .pm-group-item-name-container .fa,
+.pm-group-item.pm-cancelled .pm-group-item-name-container .fa {
+    text-decoration: line-through;
+}
+
+.pm-list-group a {
+    color: inherit;
+}
+
+.pm-list-group .pm-group-item-details {
+    font-size: 85%;
+}
+
+.pm-group-item-heading > .pm-group-item-name {
+    font-weight: bold;
+    padding-right: 4px;
+}
+
+.btn.pm-btn-xs {
+    padding: 1px 2px;
+}
+
+/* Due dates. */
+.pm-group-item.pm-warning .pm-due-date,
+.pm-group-item.pm-danger .pm-due-date {
+    font-size: 75%;
+    padding: 0.2em 0.6em 0.3em;
+    font-weight: bold;
+    border-radius: 0.25em;
+    display: inline;
+    line-height: 1;
+}
+
+.pm-warning .pm-due-date {
+    color: #c09853;
+    background-color: #fcf8e3;
+}
+
+.pm-danger .pm-due-date {
+    color: #b94a48;
+    background-color: #f2dede;
+}
+
+/* Watching toggle styles */
+.panel-watch-status.watching {
+    color: #fff;
+    background-color: #c2b8a7;
+    opacity: 1;
+}
+
+.panel-watch-status {
+    position: absolute;
+    top: 0px;
+    right: 0px;
+    bottom: 0px;
+    width: 35px;
+    padding-top: 10px;
+    color: #6a6a6a;
+    text-align: center;
+    cursor: pointer;
+    border-left: 1px solid #c2b8a7;
+    opacity: 0.4;
+    transition: 1s;
+}
+
+.panel-follow .panel-watch-status {
+    right: 35px;
+}
+
+.panel-watch-status::before {
+    font-family: FontAwesome;
+    content: "\f1f7";
+}
+
+.panel-watch-status.watching::before {
+    content: "\f0f3";
+}
+
+.panel .panel-heading.panel-watch {
+    position: relative;
+    padding-right: 40px;
+}
+
+.panel .panel-heading.panel-follow.panel-watch {
+    position: relative;
+    padding-right: 80px;
+}
+
+/* Following Styles */
+.pm-task-follow-status::before {
+    font-family: FontAwesome;
+    content: "\f006";
+}
+.pm-task-follow-status.following::before {
+    content: "\f005";
+}
+.pm-task-follow-status {
+    cursor: pointer;
+}
+
+/* Markdown Editor overrides */
+.md-editor {
+    height: 200px;
+}
+.md-container > .md-preview {
+    overflow-y: initial;
+}
+
+/* FontAwesome additions */
+.fa-border.pm-fa-rounded-border {
+    border-radius: 0.3em;
+}
+
+/* Standard bootstrap additions */
+.panel-heading.pm-nav-tabs {
+    padding-bottom: 0px;
+}
+.nav.pm-nav-tabs-sm > li > a {
+    padding: 4px 6px;
+}
+.panel-heading.pm-nav-tabs .nav {
+    border-bottom: 0px;
+}
+
+.list-group .pm-group-item-xs {
+    padding: 0px;
+}
+
+.pm-min-height-sm {
+    min-height: 7.5px;
+}
+.pm-min-height-md {
+    min-height: 15px;
+}
+.pm-min-height-lg {
+    min-height: 30px;
+}
