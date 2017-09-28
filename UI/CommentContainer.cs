@@ -11,9 +11,9 @@ using Rock.Web.Cache;
 using Rock.Web.UI;
 using Rock.Web.UI.Controls;
 
-using com.blueboxmoon.ProjectManagement.Model;
+using com.rocklabs.Forums.Model;
 
-namespace com.blueboxmoon.ProjectManagement.UI
+namespace com.rocklabs.Forums.UI
 {
     /// <summary>
     /// Handles displaying and deleting comments on a project.
@@ -23,10 +23,10 @@ namespace com.blueboxmoon.ProjectManagement.UI
         /// <summary>
         /// The identifier of the project whose comments will be displayed.
         /// </summary>
-        public int? ProjectId
+        public int? TopicId
         {
-            get { return ViewState["ProjectId"] as int?; }
-            set { ViewState["ProjectId"] = value; }
+            get { return ViewState["TopicId"] as int?; }
+            set { ViewState["TopicId"] = value; }
         }
 
         /// <summary>
@@ -74,22 +74,22 @@ namespace com.blueboxmoon.ProjectManagement.UI
         public void RebuildNotes()
         {
             var rockPage = this.Page as RockPage;
-            int? projectEntityTypeId = EntityTypeCache.GetId( typeof( Project ) );
-            int? projectId = ProjectId;
+            int? topicEntityTypeId = EntityTypeCache.GetId( typeof( ForumTopic ) );
+            int? topicId = TopicId;
 
             //
             // Clear any old notes out.
             //
             Controls.Clear();
 
-            if ( rockPage != null && projectEntityTypeId.HasValue && projectId.HasValue )
+            if ( rockPage != null && topicEntityTypeId.HasValue && topicId.HasValue )
             {
                 var currentPerson = rockPage.CurrentPerson;
 
                 using ( var rockContext = new RockContext() )
                 {
                     var notes = new NoteService( rockContext ).Queryable()
-                        .Where( n => n.NoteType.EntityTypeId == projectEntityTypeId.Value && n.EntityId == projectId.Value )
+                        .Where( n => n.NoteType.EntityTypeId == topicEntityTypeId.Value && n.EntityId == topicId.Value )
                         .OrderBy( n => n.CreatedDateTime ).ToList();
 
                     foreach ( var note in notes )

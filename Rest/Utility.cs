@@ -2,9 +2,9 @@
 
 using Rock.Rest;
 
-namespace com.blueboxmoon.ProjectManagement.Rest
+namespace com.rocklabs.Forums.Rest
 {
-    public class BBM_ProjectManagement_UtilityController : ApiControllerBase
+    public class RockLabs_Forums_UtilityController : ApiControllerBase
     {
         #region API Methods
 
@@ -14,8 +14,8 @@ namespace com.blueboxmoon.ProjectManagement.Rest
         /// <param name="markdown">The markdown text to be converted.</param>
         /// <returns>An HTML formatted string.</returns>
         [HttpPost]
-        [System.Web.Http.Route( "api/BBM_ProjectManagement_Utility/PreviewComment" )]
-        public string GetPreviewComment( [FromBody]string markdown )
+        [System.Web.Http.Route( "api/RockLabs_Forums_Utility/MarkdownToHtml" )]
+        public string MarkdownToHtml( [FromBody]string markdown )
         {
             return Utility.ConvertMarkdownToHtml( markdown );
         }

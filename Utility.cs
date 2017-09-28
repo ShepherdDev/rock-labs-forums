@@ -11,7 +11,7 @@ using Rock.Data;
 using Rock.Model;
 using Rock.Web.Cache;
 
-namespace com.blueboxmoon.ProjectManagement
+namespace com.rocklabs.Forums
 {
     public static class Utility
     {

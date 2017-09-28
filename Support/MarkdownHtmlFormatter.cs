@@ -4,7 +4,7 @@ using CommonMark;
 using CommonMark.Formatters;
 using CommonMark.Syntax;
 
-namespace com.blueboxmoon.ProjectManagement.Support
+namespace com.rocklabs.Forums.Support
 {
     /// <summary>
     /// Custom formatter to add "max-width: 100%" to the image tags.

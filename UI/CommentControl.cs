@@ -8,7 +8,7 @@ using Rock.Model;
 using Rock.Web.UI;
 using Rock.Web.UI.Controls;
 
-namespace com.blueboxmoon.ProjectManagement.UI
+namespace com.rocklabs.Forums.UI
 {
     /// <summary>
     /// Handles the display of a single project comment.
