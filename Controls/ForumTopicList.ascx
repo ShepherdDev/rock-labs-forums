@@ -8,15 +8,11 @@
 
         <Rock:Grid ID="gTopics" runat="server" AllowPaging="true" AllowSorting="true" OnRowSelected="gTopics_RowSelected" RowItemText="Topic" ShowActionRow="false" DataKeyNames="Id">
             <Columns>
-                <Rock:RockTemplateField HeaderText="Topic" SortExpression="Name">
-                    <ItemTemplate>
-                        <%# Eval( "Name" ) %>
-                    </ItemTemplate>
-                </Rock:RockTemplateField>
-                <Rock:RockBoundField HeaderText="Author" DataField="Author.FullName" SortExpression="Author.FullName"></Rock:RockBoundField>
-                <Rock:DateTimeField HeaderText="Posted" DataField="PostedDate" SortExpression="PostedDate"></Rock:DateTimeField>
-                <Rock:DateTimeField HeaderText="Last Post" DataField="LastPost.CreatedDateTime" SortExpression="LastPost.CreatedDateTime"></Rock:DateTimeField>
-                <Rock:RockBoundField HeaderText="Replies" DataField="ReplyCount" SortExpression="ReplyCount"></Rock:RockBoundField>
+                <Rock:RockBoundField HeaderText="Topic" DataField="Name" SortExpression="Name" ColumnPriority="AlwaysVisible"></Rock:RockBoundField>
+                <Rock:RockBoundField HeaderText="Author" DataField="Author.FullName" SortExpression="Author.FullName" ColumnPriority="TabletSmall"></Rock:RockBoundField>
+                <Rock:DateTimeField HeaderText="Posted" DataField="PostedDate" SortExpression="PostedDate" ColumnPriority="DesktopSmall"></Rock:DateTimeField>
+                <Rock:DateTimeField HeaderText="Last Post" DataField="LastPost.CreatedDateTime" SortExpression="LastPost.CreatedDateTime" ColumnPriority="Desktop"></Rock:DateTimeField>
+                <Rock:RockBoundField HeaderText="Replies" DataField="ReplyCount" SortExpression="ReplyCount" ColumnPriority="Desktop"></Rock:RockBoundField>
             </Columns>
         </Rock:Grid>
         <asp:Panel ID="pnlCategories" runat="server">
