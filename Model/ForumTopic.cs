@@ -11,10 +11,11 @@ using Rock;
 using Rock.Data;
 using Rock.Model;
 using Rock.Security;
+using Rock.Web.Cache;
 
 namespace com.rocklabs.Forums.Model
 {
-    [Table( "_com_rocklabs_Forums_Topic" )]
+    [Table( "_com_rocklabs_Forums_ForumTopic" )]
     [DataContract]
     public class ForumTopic : Model<ForumTopic>, IRockEntity
     {

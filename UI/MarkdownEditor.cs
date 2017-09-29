@@ -7,7 +7,7 @@ using System.Web.UI.WebControls;
 
 using Rock;
 
-namespace com.blueboxmoon.ProjectManagement.UI
+namespace com.rocklabs.Forums.UI
 {
     /// <summary>
     /// Provides a control for editing markdown with built-in file upload and
@@ -188,7 +188,7 @@ namespace com.blueboxmoon.ProjectManagement.UI
     function preview(content, callback)
     {{
         $.ajax({{
-            url: '/api/BBM_ProjectManagement_Utility/PreviewComment',
+            url: '/api/RockLabs_Forums_Utility/MarkdownToHtml',
             type: 'POST',
             dataType: 'json',
             contentType: 'application/json',

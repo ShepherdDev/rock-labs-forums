@@ -15,16 +15,18 @@ using Rock.Web.Cache;
 using Rock.Web.UI;
 using Rock.Web.UI.Controls;
 
-using com.blueboxmoon.ProjectManagement;
-using com.blueboxmoon.ProjectManagement.Model;
+using com.rocklabs.Forums;
+using com.rocklabs.Forums.Model;
 
-namespace RockWeb.Plugins.com_blueboxmoon.ProjectManagement
+namespace RockWeb.Plugins.com_rocklabs.Forums
 {
     [DisplayName( "Comment List" )]
-    [Category( "Blue Box Moon > Project Management" )]
-    [Description( "Displays existing allows entry of new comments for a project." )]
+    [Category( "Rock Labs > Forums" )]
+    [Description( "Displays existing comments and allows entry of new comments for a forum topic." )]
 
-    [ContextAware( typeof( Project ) )]
+    [ContextAware( typeof( ForumTopic ) )]
+    [CodeEditorField( "Comment Template", "The lava template to use when displaying comments.", CodeEditorMode.Lava, height: 400, order: 0 )]
+    [BinaryFileTypeField( "Binary File Type", "The storage type to use for uploaded files and images in comments.", false, "", order: 1 )]
     public partial class CommentList : RockBlock, ISecondaryBlock
     {
         #region Private Fields
@@ -43,18 +45,17 @@ namespace RockWeb.Plugins.com_blueboxmoon.ProjectManagement
         {
             base.OnInit( e );
 
-            RockPage.AddCSSLink( "~/Plugins/com_blueboxmoon/ProjectManagement/Styles/project-management.css" );
-            RockPage.AddCSSLink( "~/Plugins/com_blueboxmoon/ProjectManagement/Styles/bootstrap-markdown-editor.css" );
+            RockPage.AddCSSLink( "~/Plugins/com_rocklabs/Forums/Styles/bootstrap-markdown-editor.css" );
             RockPage.AddScriptLink( "~/Scripts/ace/ace.js" );
-            RockPage.AddScriptLink( "~/Plugins/com_blueboxmoon/ProjectManagement/Scripts/bootstrap-markdown-editor.js" );
+            RockPage.AddScriptLink( "~/Plugins/com_rocklabs/Forums/Scripts/bootstrap-markdown-editor.js" );
 
             //
-            // Verify that the user is allowed to make edits to the project in question.
+            // Verify that the user is allowed to make edits to the topic in question.
             //
             _canAddEditDelete = IsUserAuthorized( Authorization.EDIT );
-            if ( _canAddEditDelete && ContextEntity<Project>() != null )
+            if ( _canAddEditDelete && ContextEntity<ForumTopic>() != null )
             {
-                var project = ContextEntity<Project>();
+                var project = ContextEntity<ForumTopic>();
 
                 if ( project != null )
                 {
@@ -65,8 +66,6 @@ namespace RockWeb.Plugins.com_blueboxmoon.ProjectManagement
             // this event gets fired after block settings are updated. it's nice to repaint the screen if these settings would alter it
             this.BlockUpdated += Block_BlockUpdated;
             this.AddConfigurationUpdateTrigger( upnlContent );
-
-            EventHelper.GetHelper().ProjectCommentsChanged += ProjectCommentsChanged;
         }
 
         /// <summary>
@@ -78,19 +77,15 @@ namespace RockWeb.Plugins.com_blueboxmoon.ProjectManagement
         {
             if ( !IsPostBack )
             {
-                var project = ContextEntity<Project>();
+                var topic = ContextEntity<ForumTopic>();
 
-                if ( project != null && project.IsAuthorized( Authorization.VIEW, CurrentPerson ) )
+                if ( topic != null && topic.IsAuthorized( Authorization.VIEW, CurrentPerson ) )
                 {
                     var globalAttributesCache = GlobalAttributesCache.Read();
 
-                    lbComment.Visible = _canAddEditDelete;
-                    meNewComment.Visible = _canAddEditDelete;
+                    btnReply.Visible = _canAddEditDelete;
                     meNewComment.PublicApplicationRoot = globalAttributesCache.GetValue( "PublicApplicationRoot" );
-                    if ( project.ProjectType.BinaryFileType != null )
-                    {
-                        meNewComment.BinaryFileTypeGuid = project.ProjectType.BinaryFileType.Guid;
-                    }
+                    meNewComment.BinaryFileTypeGuid = GetAttributeValue( "BinaryFileType" ).AsGuidOrNull();
 
                     pnlCommentList.Visible = true;
                     ShowComments();
@@ -98,9 +93,9 @@ namespace RockWeb.Plugins.com_blueboxmoon.ProjectManagement
             }
             else
             {
-                var project = ContextEntity<Project>();
+                var topic = ContextEntity<ForumTopic>();
 
-                if ( project != null )
+                if ( topic != null )
                 {
                     ShowComments();
                 }
@@ -112,15 +107,34 @@ namespace RockWeb.Plugins.com_blueboxmoon.ProjectManagement
         #region Core Methods
 
         /// <summary>
-        /// Bind the repeater to the list of projects in the project.
+        /// Show all the comments on this topic.
         /// </summary>
         private void ShowComments()
         {
-            var project = ContextEntity() as Project;
+            int? topicEntityTypeId = EntityTypeCache.GetId( typeof( ForumTopic ) );
+            var topic = ContextEntity<ForumTopic>();
 
-            ccComments.ProjectId = project.Id;
-            ccComments.RebuildNotes();
+            if ( topic != null )
+            {
+                //using ( var rockContext = new RockContext() )
+                var rockContext = new RockContext();
+                {
+                    var notes = new NoteService( rockContext ).Queryable()
+                        .Where( n => n.NoteType.EntityTypeId == topicEntityTypeId.Value && n.EntityId == topic.Id )
+                        .OrderBy( n => n.CreatedDateTime ).ToList();
+
+                    var mergeFields = Rock.Lava.LavaHelper.GetCommonMergeFields( RockPage, CurrentPerson );
+                    mergeFields.Add( "Notes", notes );
+
+                    lComments.Text = GetAttributeValue( "CommentTemplate" ).ResolveMergeFields( mergeFields );
+                }
+            }
+            else
+            {
+                lComments.Text = string.Empty;
+            }
         }
+
 
         /// <summary>
         /// Sets the visibility of this block when requested by other blocks.
@@ -129,6 +143,42 @@ namespace RockWeb.Plugins.com_blueboxmoon.ProjectManagement
         void ISecondaryBlock.SetVisible( bool visible )
         {
             pnlCommentList.Visible = visible;
+        }
+
+        /// <summary>
+        /// Adds a following record on the topic for the specified person. Checks if
+        /// one is needed first.
+        /// </summary>
+        /// <param name="topicId">The topic identifier to be followed.</param>
+        /// <param name="personAliasId">The person who is to follow the project.</param>
+        /// <param name="rockContext">The RockContext to work in. Changes are not saved by this method.</param>
+        public void FollowTopic( int topicId, int personAliasId, RockContext rockContext )
+        {
+            int entityTypeId = EntityTypeCache.Read( typeof( ForumTopic ) ).Id;
+
+            rockContext = rockContext ?? new RockContext();
+            var followingService = new FollowingService( rockContext );
+            var personId = new PersonAliasService( rockContext ).Get( personAliasId ).PersonId;
+
+            bool isFollowing = followingService.Queryable()
+                .Where( f => f.EntityTypeId == entityTypeId && f.EntityId == topicId && f.PersonAlias.Person.Id == personId )
+                .Any();
+
+            if ( !isFollowing )
+            {
+                var person = new PersonService( rockContext ).Get( personId );
+
+                if ( person != null )
+                {
+                    var following = new Following { Id = 0 };
+                    followingService.Add( following );
+
+                    following.EntityTypeId = entityTypeId;
+                    following.EntityId = topicId;
+                    following.PersonAliasId = person.PrimaryAliasId.Value;
+                    following.CreatedDateTime = RockDateTime.Now;
+                }
+            }
         }
 
         #endregion
@@ -150,42 +200,28 @@ namespace RockWeb.Plugins.com_blueboxmoon.ProjectManagement
         /// </summary>
         /// <param name="sender">The source of the event.</param>
         /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
-        protected void lbAdd_Click( object sender, EventArgs e )
-        {
-            Project project = ContextEntity() as Project;
-
-            if ( project != null )
-            {
-            }
-        }
-
-        /// <summary>
-        /// Handles the Click event of the control.
-        /// </summary>
-        /// <param name="sender">The source of the event.</param>
-        /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
-        protected void lbComment_Click( object sender, EventArgs e )
+        protected void btnComment_Click( object sender, EventArgs e )
         {
             var rockContext = new RockContext();
             var noteService = new NoteService( rockContext );
             var followingService = new FollowingService( rockContext );
             var binaryFileService = new BinaryFileService( rockContext );
-            var attachmentService = new AttachmentService( rockContext );
-            var project = new ProjectService( rockContext ).Get( ( ContextEntity() as Project ).Id );
+            var topic = new ForumTopicService( rockContext ).Get( ( ContextEntity<ForumTopic>() ).Id );
             var note = new Note { Id = 0 };
+            int noteTypeId = NoteTypeCache.Read( com.rocklabs.Forums.SystemGuid.NoteType.FORUM_TOPIC_COMMENT.AsGuid() ).Id;
 
             //
             // Add the note to the database.
             //
             noteService.Add( note );
-            note.NoteTypeId = NoteTypeCache.Read( com.blueboxmoon.ProjectManagement.SystemGuid.NoteType.PROJECT_USER_COMMENT.AsGuid() ).Id;
-            note.EntityId = project.Id;
+            note.NoteTypeId = noteTypeId;
+            note.EntityId = topic.Id;
             note.Text = meNewComment.Text;
             note.CreatedByPersonAliasId = CurrentPersonAliasId;
 
             //
             // Check each file they uploaded while writing this note. If it is referenced in the
-            // note text then attach it to the project and mark the binary file as permanent.
+            // note text then mark the binary file as permanent.
             //
             foreach ( var hfId in meNewComment.UploadedFileIds )
             {
@@ -194,12 +230,6 @@ namespace RockWeb.Plugins.com_blueboxmoon.ProjectManagement
                 if ( binaryFile != null && note.Text.Contains( string.Format( "/GetFile.ashx?Id={0})", hfId ) ) )
                 {
                     binaryFile.IsTemporary = false;
-
-                    var attachment = new Attachment { Id = 0 };
-                    project.Attachments.Add( attachment );
-                    attachment.CreatedByPersonAliasId = CurrentPersonAliasId;
-                    attachment.CreatedDateTime = RockDateTime.Now;
-                    attachment.BinaryFileId = binaryFile.Id;
                 }
             }
 
@@ -209,31 +239,49 @@ namespace RockWeb.Plugins.com_blueboxmoon.ProjectManagement
             rockContext.WrapTransaction( () =>
             {
                 rockContext.SaveChanges();
-                Project.WatchProject( project.Id, CurrentPersonAliasId.Value, false, rockContext, true );
+
+                if ( noteService.Queryable().Count( n => n.NoteTypeId == noteTypeId && n.EntityId == topic.Id ) == 1 )
+                {
+                    FollowTopic( topic.Id, CurrentPersonAliasId.Value, rockContext );
+
+                    rockContext.SaveChanges();
+                }
             } );
 
-            Project.SendCommentNotification( project.Id, CurrentPersonAliasId, note.Id );
-            EventHelper.GetHelper().PostProjectCommentsChanged( this, project.Id );
+            //SendCommentNotification( topic.Id, CurrentPersonAliasId, note.Id );
 
             ShowComments();
 
             meNewComment.UploadedFileIds = null;
             meNewComment.Text = string.Empty;
+
+            pnlReply.Visible = false;
+            btnReply.Visible = true;
         }
 
         /// <summary>
-        /// Handles the ProjectCommentsChanged event.
+        /// Handles the Click event of the control.
         /// </summary>
         /// <param name="sender">The source of the event.</param>
-        /// <param name="e">The <see cref="ProjectEventArgs"/> instance containing the event data.</param>
-        private void ProjectCommentsChanged( object sender, ProjectEventArgs e )
+        /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
+        protected void btnReply_Click( object sender, EventArgs e )
         {
-            var project = ContextEntity<Project>();
+            btnReply.Visible = false;
+            pnlReply.Visible = true;
+        }
 
-            if ( sender != this && e.ProjectId.HasValue && project != null && e.ProjectId.Value == project.Id )
-            {
-                ShowComments();
-            }
+        /// <summary>
+        /// Handles the Click event of the control.
+        /// </summary>
+        /// <param name="sender">The source of the event.</param>
+        /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
+        protected void btnCancel_Click( object sender, EventArgs e )
+        {
+            meNewComment.UploadedFileIds = null;
+            meNewComment.Text = string.Empty;
+
+            btnReply.Visible = true;
+            pnlReply.Visible = false;
         }
 
         #endregion
