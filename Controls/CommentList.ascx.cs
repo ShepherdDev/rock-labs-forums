@@ -1,8 +1,6 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
-using System.Web.UI;
 using System.Web.UI.WebControls;
 
 using Rock;
@@ -10,13 +8,9 @@ using Rock.Attribute;
 using Rock.Data;
 using Rock.Model;
 using Rock.Security;
-using Rock.Web;
 using Rock.Web.Cache;
 using Rock.Web.UI;
 using Rock.Web.UI.Controls;
-
-using com.rocklabs.Forums;
-using com.rocklabs.Forums.Model;
 
 namespace RockWeb.Plugins.com_rocklabs.Forums
 {
