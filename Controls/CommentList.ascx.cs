@@ -22,11 +22,15 @@ namespace RockWeb.Plugins.com_rocklabs.Forums
 {
     [DisplayName( "Comment List" )]
     [Category( "Rock Labs > Forums" )]
-    [Description( "Displays existing comments and allows entry of new comments for a forum topic." )]
+    [Description( "Displays existing comments and allows entry of new comments for an entity." )]
 
-    [ContextAware( typeof( ForumTopic ) )]
-    [CodeEditorField( "Comment Template", "The lava template to use when displaying comments.", CodeEditorMode.Lava, height: 400, order: 0 )]
+    [ContextAware]
+    [NoteTypeField( "Note Type", "The note type to use when a person leaves a new comment.", order: 0 )]
     [BinaryFileTypeField( "Binary File Type", "The storage type to use for uploaded files and images in comments.", false, "", order: 1 )]
+    [BooleanField( "Enforce Entity Security", "If set to true and the user does not have Edit permissions to the entity then they will not be allowed to post replies.", false, order: 2 )]
+    [BooleanField( "Follow On First Post", "If set to true then the user will automatically Follow the entity on their first post.", false, order: 3 )]
+    [SystemEmailField( "Notification Email", "If set, then all users that are following the entity will receive an e-mail when a new comment is left.", false, order: 4 )]
+    [CodeEditorField( "Comment Template", "The lava template to use when displaying comments.", CodeEditorMode.Lava, height: 400, order: 5 )]
     public partial class CommentList : RockBlock, ISecondaryBlock
     {
         #region Private Fields
@@ -50,16 +54,15 @@ namespace RockWeb.Plugins.com_rocklabs.Forums
             RockPage.AddScriptLink( "~/Plugins/com_rocklabs/Forums/Scripts/bootstrap-markdown-editor.js" );
 
             //
-            // Verify that the user is allowed to make edits to the topic in question.
+            // Verify that the user is allowed to make edits to the entity in question.
             //
             _canAddEditDelete = IsUserAuthorized( Authorization.EDIT );
-            if ( _canAddEditDelete && ContextEntity<ForumTopic>() != null )
+            var entity = ContextEntity();
+            if ( _canAddEditDelete && entity != null )
             {
-                var project = ContextEntity<ForumTopic>();
-
-                if ( project != null )
+                if ( GetAttributeValue( "EnforceEntitySecurity" ).AsBoolean( false ) && entity is ISecured )
                 {
-                    _canAddEditDelete = project.IsAuthorized( Authorization.EDIT, CurrentPerson );
+                    _canAddEditDelete = ( ( ISecured ) entity ).IsAuthorized( Authorization.EDIT, CurrentPerson );
                 }
             }
 
@@ -77,9 +80,15 @@ namespace RockWeb.Plugins.com_rocklabs.Forums
         {
             if ( !IsPostBack )
             {
-                var topic = ContextEntity<ForumTopic>();
+                var entity = ContextEntity();
+                var canView = true;
 
-                if ( topic != null && topic.IsAuthorized( Authorization.VIEW, CurrentPerson ) )
+                if ( entity is ISecured )
+                {
+                    canView = ( ( ISecured ) entity ).IsAuthorized( Authorization.VIEW, CurrentPerson );
+                }
+
+                if ( entity != null && canView )
                 {
                     var globalAttributesCache = GlobalAttributesCache.Read();
 
@@ -93,12 +102,7 @@ namespace RockWeb.Plugins.com_rocklabs.Forums
             }
             else
             {
-                var topic = ContextEntity<ForumTopic>();
-
-                if ( topic != null )
-                {
-                    ShowComments();
-                }
+                ShowComments();
             }
         }
 
@@ -107,20 +111,21 @@ namespace RockWeb.Plugins.com_rocklabs.Forums
         #region Core Methods
 
         /// <summary>
-        /// Show all the comments on this topic.
+        /// Show all the comments on this entity.
         /// </summary>
         private void ShowComments()
         {
-            int? topicEntityTypeId = EntityTypeCache.GetId( typeof( ForumTopic ) );
-            var topic = ContextEntity<ForumTopic>();
+            var entity = ContextEntity();
+            var noteType = NoteTypeCache.Read( GetAttributeValue( "NoteType" ).AsGuid() );
 
-            if ( topic != null )
+            if ( entity != null && noteType != null )
             {
-                //using ( var rockContext = new RockContext() )
-                var rockContext = new RockContext();
+                int? entityTypeId = EntityTypeCache.GetId( ContextEntity().TypeName );
+
+                using ( var rockContext = new RockContext() )
                 {
                     var notes = new NoteService( rockContext ).Queryable()
-                        .Where( n => n.NoteType.EntityTypeId == topicEntityTypeId.Value && n.EntityId == topic.Id )
+                        .Where( n => n.NoteTypeId == noteType.Id && n.EntityId == entity.Id )
                         .OrderBy( n => n.CreatedDateTime ).ToList();
 
                     var mergeFields = Rock.Lava.LavaHelper.GetCommonMergeFields( RockPage, CurrentPerson );
@@ -128,10 +133,13 @@ namespace RockWeb.Plugins.com_rocklabs.Forums
 
                     lComments.Text = GetAttributeValue( "CommentTemplate" ).ResolveMergeFields( mergeFields );
                 }
+
+                btnReply.Visible = noteType != null && noteType.EntityTypeId == entityTypeId;
             }
             else
             {
                 lComments.Text = string.Empty;
+                btnReply.Visible = false;
             }
         }
 
@@ -146,22 +154,22 @@ namespace RockWeb.Plugins.com_rocklabs.Forums
         }
 
         /// <summary>
-        /// Adds a following record on the topic for the specified person. Checks if
+        /// Adds a following record on the entity for the specified person. Checks if
         /// one is needed first.
         /// </summary>
-        /// <param name="topicId">The topic identifier to be followed.</param>
+        /// <param name="entityId">The entity identifier to be followed.</param>
         /// <param name="personAliasId">The person who is to follow the project.</param>
         /// <param name="rockContext">The RockContext to work in. Changes are not saved by this method.</param>
-        public void FollowTopic( int topicId, int personAliasId, RockContext rockContext )
+        public void FollowEntity( int entityId, int personAliasId, RockContext rockContext )
         {
-            int entityTypeId = EntityTypeCache.Read( typeof( ForumTopic ) ).Id;
+            int entityTypeId = EntityTypeCache.Read( ContextEntity().TypeName ).Id;
 
             rockContext = rockContext ?? new RockContext();
             var followingService = new FollowingService( rockContext );
             var personId = new PersonAliasService( rockContext ).Get( personAliasId ).PersonId;
 
             bool isFollowing = followingService.Queryable()
-                .Where( f => f.EntityTypeId == entityTypeId && f.EntityId == topicId && f.PersonAlias.Person.Id == personId )
+                .Where( f => f.EntityTypeId == entityTypeId && f.EntityId == entityId && f.PersonAlias.Person.Id == personId )
                 .Any();
 
             if ( !isFollowing )
@@ -174,7 +182,7 @@ namespace RockWeb.Plugins.com_rocklabs.Forums
                     followingService.Add( following );
 
                     following.EntityTypeId = entityTypeId;
-                    following.EntityId = topicId;
+                    following.EntityId = entityId;
                     following.PersonAliasId = person.PrimaryAliasId.Value;
                     following.CreatedDateTime = RockDateTime.Now;
                 }
@@ -206,16 +214,16 @@ namespace RockWeb.Plugins.com_rocklabs.Forums
             var noteService = new NoteService( rockContext );
             var followingService = new FollowingService( rockContext );
             var binaryFileService = new BinaryFileService( rockContext );
-            var topic = new ForumTopicService( rockContext ).Get( ( ContextEntity<ForumTopic>() ).Id );
+            var entityId = ContextEntity().Id;
             var note = new Note { Id = 0 };
-            int noteTypeId = NoteTypeCache.Read( com.rocklabs.Forums.SystemGuid.NoteType.FORUM_TOPIC_COMMENT.AsGuid() ).Id;
+            int noteTypeId = NoteTypeCache.Read( GetAttributeValue( "NoteType" ).AsGuid() ).Id;
 
             //
             // Add the note to the database.
             //
             noteService.Add( note );
             note.NoteTypeId = noteTypeId;
-            note.EntityId = topic.Id;
+            note.EntityId = entityId;
             note.Text = meNewComment.Text;
             note.CreatedByPersonAliasId = CurrentPersonAliasId;
 
@@ -240,15 +248,22 @@ namespace RockWeb.Plugins.com_rocklabs.Forums
             {
                 rockContext.SaveChanges();
 
-                if ( noteService.Queryable().Count( n => n.NoteTypeId == noteTypeId && n.EntityId == topic.Id ) == 1 )
+                if ( GetAttributeValue( "FollowOnFirstPost" ).AsBoolean( false ) )
                 {
-                    FollowTopic( topic.Id, CurrentPersonAliasId.Value, rockContext );
+                    int postCount = noteService.Queryable().Count( n => n.NoteTypeId == noteTypeId && n.EntityId == entityId );
+                    if ( postCount == 1 )
+                    {
+                        FollowEntity( entityId, CurrentPersonAliasId.Value, rockContext );
 
-                    rockContext.SaveChanges();
+                        rockContext.SaveChanges();
+                    }
                 }
             } );
 
-            //SendCommentNotification( topic.Id, CurrentPersonAliasId, note.Id );
+            if ( !string.IsNullOrWhiteSpace( GetAttributeValue( "NotificationEmail" ) ) )
+            {
+                //SendCommentNotification( entityId, CurrentPersonAliasId, note.Id );
+            }
 
             ShowComments();
 
