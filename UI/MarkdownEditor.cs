@@ -215,7 +215,7 @@ namespace com.rocklabs.Forums.UI
     }}
 
     $('#{3}').markdownEditor({{
-        height: '',
+        height: '{4}',
         fullscreen: false,
         preview: true,
         onPreview: preview,
@@ -228,7 +228,8 @@ namespace com.rocklabs.Forums.UI
                 _uploadedFiles.ClientID,
                 _publicApplicationRoot.ClientID,
                 _fileTypeGuid.ClientID,
-                _text.ClientID );
+                _text.ClientID,
+                Height.Value > 0 ? Height.Value : 200 );
 
                 ScriptManager.RegisterStartupScript( this, GetType(), "initialize", script, true );
             }
