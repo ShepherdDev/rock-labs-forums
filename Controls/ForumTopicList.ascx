@@ -11,7 +11,7 @@
                 <Rock:RockBoundField HeaderText="Topic" DataField="Name" SortExpression="Name" ColumnPriority="AlwaysVisible"></Rock:RockBoundField>
                 <Rock:RockBoundField HeaderText="Author" DataField="Author.FullName" SortExpression="Author.FullName" ColumnPriority="TabletSmall"></Rock:RockBoundField>
                 <Rock:DateTimeField HeaderText="Posted" DataField="PostedDate" SortExpression="PostedDate" ColumnPriority="DesktopSmall"></Rock:DateTimeField>
-                <Rock:DateTimeField HeaderText="Last Post" DataField="LastPost.CreatedDateTime" SortExpression="LastPost.CreatedDateTime" ColumnPriority="Desktop"></Rock:DateTimeField>
+                <Rock:DateTimeField HeaderText="Last Reply" DataField="LastPost.CreatedDateTime" SortExpression="LastPost.CreatedDateTime" ColumnPriority="Desktop"></Rock:DateTimeField>
                 <Rock:RockBoundField HeaderText="Replies" DataField="ReplyCount" SortExpression="ReplyCount" ColumnPriority="Desktop"></Rock:RockBoundField>
             </Columns>
         </Rock:Grid>

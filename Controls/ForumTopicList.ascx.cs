@@ -115,7 +115,7 @@ namespace RockWeb.Plugins.com_rocklabs.Forums
         /// <param name="e">The <see cref="RowEventArgs"/> instance containing the event data.</param>
         protected void gTopics_RowSelected( object sender, RowEventArgs e )
         {
-            NavigateToLinkedPage( "DetailPage", "topicId", e.RowKeyId );
+            NavigateToLinkedPage( "DetailPage", "Id", e.RowKeyId );
         }
 
         #endregion
