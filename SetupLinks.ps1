@@ -1,12 +1,12 @@
 ﻿<# Right-click in Explorer and select 'Run In Powershell'
  #
  # Prepares a new project for use with either RockIt development kit or a production Rock
- # installation by setting up windows hard links between the project folders and their corresponding
+ # installation by setting up windows symbolic links between the project folders and their corresponding
  # folders under the RockIt or RockWeb folders. This allows you to maintain version control through
  # git or another system of the plugin all in one folder tree while still having them show up directly
  # in Rock.
  #
- # Note: Hard links requires NTFS and that both folders exist on the same drive letter.
+ # Note: Symbolic links requires NTFS and that you authorize the script to run with elevated privileges.
  #
  # Expected project format:
  #  com.yourchurch.project_name/				- Linked to RockIt/com.yourchurch.project_name/
@@ -26,6 +26,8 @@
  # RockWeb/Themes/ folder into your project's Themes/ folder (with a new name).
  #
  # Version History:
+ #   Version 1.2:
+ #     Switched from hard links to symbolic links.
  #
  #   Version 1.1:
  #
@@ -42,6 +44,31 @@
  #
  #>
 
+
+<#
+ # Elevate permissions to an Administrator user if they are not already.
+ #>
+$myWindowsID=[System.Security.Principal.WindowsIdentity]::GetCurrent()
+$myWindowsPrincipal=new-object System.Security.Principal.WindowsPrincipal($myWindowsID)
+$adminRole=[System.Security.Principal.WindowsBuiltInRole]::Administrator
+if ($myWindowsPrincipal.IsInRole($adminRole))
+{
+    # We are running "as Administrator" - so change the title and background color to indicate this
+    $Host.UI.RawUI.WindowTitle = $myInvocation.MyCommand.Definition + "(Elevated)"
+    $Host.UI.RawUI.BackgroundColor = "DarkBlue"
+    clear-host
+}
+else
+{
+    # We are not running "as Administrator" - so relaunch as administrator
+    $newProcess = new-object System.Diagnostics.ProcessStartInfo "PowerShell";
+    $newProcess.Arguments = '-File "' + $myInvocation.MyCommand.Definition + '" -NoExit';
+    $newProcess.Verb = "runas";
+    [System.Diagnostics.Process]::Start($newProcess);
+   
+    # Exit from the current, unelevated, process
+    exit
+}
 
 <#
  # Ask the user for a folder.
@@ -110,18 +137,18 @@ if ( !(Test-Path $RockWebPluginOrganizationPath) )
 }
 
 <#
- # Hard link the from the Plugins folder to the Project Controls.
+ # Link the from the Plugins folder to the Project Controls.
  #>
 if ( Test-Path $ProjectControlsPath )
 {
 	if ( !(Test-Path $RockWebPluginProjectPath) )
 	{
-		cmd /c mklink /J "$RockWebPluginProjectPath" "$ProjectControlsPath"
+		cmd /c mklink /D "$RockWebPluginProjectPath" "$ProjectControlsPath"
 	}
 }
 
 <#
- # Hard link each theme if it doesn't already exist.
+ # Link each theme if it doesn't already exist.
  #>
 if ( Test-Path $ProjectThemesPath )
 {
@@ -133,13 +160,13 @@ if ( Test-Path $ProjectThemesPath )
 
 		if ( !(Test-Path $TargetTheme) )
 		{
-			cmd /c mklink /J "$TargetTheme" "$SourceTheme"
+			cmd /c mklink /D "$TargetTheme" "$SourceTheme"
 		}
 	}
 }
 
 <#
- # Hard link each webhook if it doesn't already exist.
+ # Link each webhook if it doesn't already exist.
  #>
 if ( Test-Path $ProjectWebhooksPath )
 {
@@ -153,20 +180,20 @@ if ( Test-Path $ProjectWebhooksPath )
 
 		if ( !(Test-Path $TargetWebhook) )
 		{
-			cmd /c mklink /H "$TargetWebhook" "$SourceWebhook"
+			cmd /c mklink "$TargetWebhook" "$SourceWebhook"
 		}
 	}
 }
 
 <#
- # Hard link the actual project path if this is a RockIt install.
+ # Link the actual project path if this is a RockIt install.
  #>
 if ( $HasRockIt -eq 1 )
 {
 	$TargetProjectPath = Join-Path $RockItPath $ProjectFullName
 	if ( !(Test-Path $TargetProjectPath) )
 	{
-		cmd /c mklink /J "$TargetProjectPath" "$ProjectPath"
+		cmd /c mklink /D "$TargetProjectPath" "$ProjectPath"
 	}
 }
 
