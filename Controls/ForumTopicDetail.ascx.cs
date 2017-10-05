@@ -99,7 +99,7 @@ namespace RockWeb.Plugins.com_rocklabs.Forums
                 {
                     ShowEdit( 0 );
                 }
-                else if ( _canAddEditDelete )
+                else
                 {
                     ShowDetail( PageParameter( "Id" ).AsInteger() );
                 }
