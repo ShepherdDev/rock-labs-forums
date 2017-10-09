@@ -23,8 +23,9 @@ namespace RockWeb.Plugins.com_rocklabs.Forums
     [BinaryFileTypeField( "Binary File Type", "The storage type to use for uploaded files and images in comments.", false, "", order: 1 )]
     [BooleanField( "Enforce Entity Security", "If set to true and the user does not have Edit permissions to the entity then they will not be allowed to post replies.", false, order: 2 )]
     [BooleanField( "Follow On First Post", "If set to true then the user will automatically Follow the entity on their first post.", false, order: 3 )]
-    [SystemEmailField( "Notification Email", "If set, then all users that are following the entity will receive an e-mail when a new comment is left.", false, order: 4 )]
-    [CodeEditorField( "Comment Template", "The lava template to use when displaying comments.", CodeEditorMode.Lava, height: 400, order: 5 )]
+    [BooleanField( "Show Subscribe Button", "If set to true then a subscribe/unsubscribe button will be shown allowing the user to toggle their subscription status.", false, order: 4 )]
+    [SystemEmailField( "Notification Email", "If set, then all users that are following the entity will receive an e-mail when a new comment is left.", false, order: 5 )]
+    [CodeEditorField( "Comment Template", "The lava template to use when displaying comments.", CodeEditorMode.Lava, height: 400, order: 6 )]
     public partial class CommentList : RockBlock, ISecondaryBlock
     {
         #region Private Fields
@@ -128,7 +129,9 @@ namespace RockWeb.Plugins.com_rocklabs.Forums
                     lComments.Text = GetAttributeValue( "CommentTemplate" ).ResolveMergeFields( mergeFields );
                 }
 
-                btnReply.Visible = noteType != null && noteType.EntityTypeId == entityTypeId;
+                btnReply.Visible = noteType != null && noteType.EntityTypeId == entityTypeId && UserCanEdit;
+
+                SetupSubscribeButton();
             }
             else
             {
@@ -158,13 +161,10 @@ namespace RockWeb.Plugins.com_rocklabs.Forums
         {
             int entityTypeId = EntityTypeCache.Read( ContextEntity().TypeName ).Id;
 
-            rockContext = rockContext ?? new RockContext();
             var followingService = new FollowingService( rockContext );
             var personId = new PersonAliasService( rockContext ).Get( personAliasId ).PersonId;
 
-            bool isFollowing = followingService.Queryable()
-                .Where( f => f.EntityTypeId == entityTypeId && f.EntityId == entityId && f.PersonAlias.Person.Id == personId )
-                .Any();
+            bool isFollowing = IsFollowingEntity( entityId, personAliasId, rockContext );
 
             if ( !isFollowing )
             {
@@ -180,6 +180,70 @@ namespace RockWeb.Plugins.com_rocklabs.Forums
                     following.PersonAliasId = person.PrimaryAliasId.Value;
                     following.CreatedDateTime = RockDateTime.Now;
                 }
+            }
+        }
+
+        /// <summary>
+        /// Deletes a following record on the entity for the specified person.
+        /// </summary>
+        /// <param name="entityId">The entity identifier to be unfollowed.</param>
+        /// <param name="personAliasId">The person who is to unfollow the project.</param>
+        /// <param name="rockContext">The RockContext to work in. Changes are not saved by this method.</param>
+        public void UnfollowEntity( int entityId, int personAliasId, RockContext rockContext )
+        {
+            int entityTypeId = EntityTypeCache.Read( ContextEntity().TypeName ).Id;
+
+            var followingService = new FollowingService( rockContext );
+            var personId = new PersonAliasService( rockContext ).Get( personAliasId ).PersonId;
+
+            var followings = followingService.Queryable()
+                .Where( f => f.EntityTypeId == entityTypeId && f.EntityId == entityId && f.PersonAlias.PersonId == personId );
+
+            followingService.DeleteRange( followings );
+        }
+
+        /// <summary>
+        /// Determines if the person alias is currently following the entity.
+        /// </summary>
+        /// <param name="entityId">The entity identifier to be followed.</param>
+        /// <param name="personAliasId">The person who is to follow the project.</param>
+        /// <param name="rockContext">The RockContext to work in.</param>
+        /// <returns>True if the person is currently following the entity.</returns>
+        protected bool IsFollowingEntity( int entityId, int personAliasId, RockContext rockContext )
+        {
+            int entityTypeId = EntityTypeCache.Read( ContextEntity().TypeName ).Id;
+
+            var followingService = new FollowingService( rockContext );
+            var personId = new PersonAliasService( rockContext ).Get( personAliasId ).PersonId;
+
+            return followingService.Queryable()
+                .Where( f => f.EntityTypeId == entityTypeId && f.EntityId == entityId && f.PersonAlias.Person.Id == personId )
+                .Any();
+        }
+
+        /// <summary>
+        /// Setup the subscribe toggle button to show the correct icon and text.
+        /// </summary>
+        protected void SetupSubscribeButton()
+        {
+            var entity = ContextEntity();
+
+            if ( entity != null && CurrentPersonAliasId.HasValue && GetAttributeValue( "ShowSubscribeButton" ).AsBoolean( false ) )
+            {
+                if ( IsFollowingEntity( entity.Id, CurrentPersonAliasId.Value, new RockContext() ) )
+                {
+                    btnToggleSubscribe.Text = "<i class='fa fa-bell-o'></i> Unsubscribe";
+                }
+                else
+                {
+                    btnToggleSubscribe.Text = "<i class='fa fa-bell-slash-o'></i> Subscribe";
+                }
+
+                btnToggleSubscribe.Visible = true;
+            }
+            else
+            {
+                btnToggleSubscribe.Visible = false;
             }
         }
 
@@ -266,6 +330,8 @@ namespace RockWeb.Plugins.com_rocklabs.Forums
 
             pnlReply.Visible = false;
             btnReply.Visible = true;
+
+            SetupSubscribeButton();
         }
 
         /// <summary>
@@ -276,6 +342,7 @@ namespace RockWeb.Plugins.com_rocklabs.Forums
         protected void btnReply_Click( object sender, EventArgs e )
         {
             btnReply.Visible = false;
+            btnToggleSubscribe.Visible = false;
             pnlReply.Visible = true;
         }
 
@@ -291,6 +358,36 @@ namespace RockWeb.Plugins.com_rocklabs.Forums
 
             btnReply.Visible = true;
             pnlReply.Visible = false;
+
+            SetupSubscribeButton();
+        }
+
+        /// <summary>
+        /// Handles the Click event of the control.
+        /// </summary>
+        /// <param name="sender">The source of the event.</param>
+        /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
+        protected void btnToggleSubscribe_Click( object sender, EventArgs e )
+        {
+            var entity = ContextEntity();
+
+            if ( entity != null && CurrentPersonAliasId.HasValue )
+            {
+                var rockContext = new RockContext();
+
+                if ( IsFollowingEntity( entity.Id, CurrentPersonAliasId.Value, rockContext ) )
+                {
+                    UnfollowEntity( entity.Id, CurrentPersonAliasId.Value, rockContext );
+                }
+                else
+                {
+                    FollowEntity( entity.Id, CurrentPersonAliasId.Value, rockContext );
+                }
+
+                rockContext.SaveChanges();
+
+                SetupSubscribeButton();
+            }
         }
 
         #endregion
