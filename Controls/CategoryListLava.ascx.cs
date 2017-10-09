@@ -17,7 +17,6 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
-using System.IO;
 using System.Linq;
 using System.Web.UI;
 using System.Web.UI.WebControls;
@@ -26,11 +25,9 @@ using Rock;
 using Rock.Data;
 using Rock.Model;
 using Rock.Web.Cache;
+using Rock.Web.UI;
 using Rock.Web.UI.Controls;
 using Rock.Attribute;
-using Rock.Store;
-using System.Text;
-using Rock.Security;
 
 namespace RockWeb.Plugins.com_rocklabs.Forums
 {
@@ -40,10 +37,35 @@ namespace RockWeb.Plugins.com_rocklabs.Forums
     [DisplayName( "Category List Lava" )]
     [Category( "Rock Labs > Forums" )]
     [Description( "Lists categories with formatting via Lava." )]
-    [CodeEditorField( "Lava Template", "Lava template to use to display the categories", CodeEditorMode.Lava, CodeEditorTheme.Rock, 400, true, @"", "", order: 0 )]
-    [EntityTypeField( "Entity Type", "Display categories for the selected entity type.", true, "", order: 1 )]
-    [LinkedPage( "Detail Page", "Page reference to use for the detail page.", false, "", "", order: 2 )]
-    public partial class CategoryListLava : Rock.Web.UI.RockBlock
+    [EntityTypeField( "Entity Type", "Display categories for the selected entity type.", true, "CustomSetting", order: 0 )]
+    [CategoryField( "Default Category", "The default category to use as a root if nothing is provided in the query string.", category: "CustomSetting", required: false, order: 1 )]
+    [LinkedPage( "Detail Page", "Page reference to use for the detail page.", false, "", "CustomSetting", order: 2 )]
+    [CodeEditorField( "Lava Template", "Lava template to use to display the categories.", CodeEditorMode.Lava, CodeEditorTheme.Rock, 400, true, category: "CustomSetting", order: 3, defaultValue:
+ @"{% for category in Categories %}
+    {% if category.ChildCategories != empty %}
+        {% capture linkUrl %}?categoryId={{ category.Id }}{% endcapture %}
+    {% else %}
+        {% capture linkUrl %}{{ LinkedPages.DetailPage }}?categoryId={{ category.Id }}{% endcapture %}
+    {% endif %}
+
+    <div class=""well"">
+        <div style=""font-size: 1.75em;"">
+            {% if category.IconCssClass != empty %}
+                <span class=""pull-left""><i class=""{{ category.IconCssClass }}""></i>&nbsp;</span> 
+            {% endif %}
+            <a href=""{{ linkUrl }}"">
+                <span>{{ category.Name }}</span>
+            </a>
+        </div>
+        {% if category.Description != empty %}
+            <div style=""font-size: 0.75em;"">
+                {{ category.Description }}</span>
+            </div>
+        {% endif %}
+    </div>
+{% endfor %}
+" )]
+    public partial class CategoryListLava : RockBlockCustomSettings
     {
         #region Fields
 
@@ -66,6 +88,11 @@ namespace RockWeb.Plugins.com_rocklabs.Forums
             // this event gets fired after block settings are updated. it's nice to repaint the screen if these settings would alter it
             this.BlockUpdated += Block_BlockUpdated;
             this.AddConfigurationUpdateTrigger( upnlContent );
+
+            if ( !Page.IsPostBack )
+            {
+                pEntityType.EntityTypes = new EntityTypeService( new RockContext() ).GetEntities().ToList();
+            }
         }
 
         /// <summary>
@@ -78,7 +105,7 @@ namespace RockWeb.Plugins.com_rocklabs.Forums
 
             if ( !Page.IsPostBack )
             {
-                LoadCategories();
+                ShowCategories();
             }
         }
 
@@ -93,14 +120,61 @@ namespace RockWeb.Plugins.com_rocklabs.Forums
         /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
         protected void Block_BlockUpdated( object sender, EventArgs e )
         {
-            LoadCategories();
+            ShowCategories();
+        }
+
+        /// <summary>
+        /// Handles the SelectedIndexChanges event of the control.
+        /// </summary>
+        /// <param name="sender">The source of the event.</param>
+        /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
+        protected void pEntityType_SelectedIndexChanged( object sender, EventArgs e )
+        {
+            var entityType = EntityTypeCache.Read( pEntityType.SelectedValue.AsInteger() );
+
+            if ( entityType != null )
+            {
+                pDefaultCategory.EntityTypeId = entityType.Id;
+                pDefaultCategory.SetValue( null );
+                pDefaultCategory.Visible = true;
+            }
+            else
+            {
+                pDefaultCategory.EntityTypeName = string.Empty;
+                pDefaultCategory.SetValue( null );
+                pDefaultCategory.Visible = false;
+            }
+        }
+
+        /// <summary>
+        /// Handles the SaveClick event of the control.
+        /// </summary>
+        /// <param name="sender">The source of the event.</param>
+        /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
+        protected void mdlSettings_SaveClick( object sender, EventArgs e )
+        {
+            var entityType = EntityTypeCache.Read( pEntityType.SelectedValue.AsInteger() );
+            var category = CategoryCache.Read( pDefaultCategory.SelectedValue.AsInteger() );
+            var page = PageCache.Read( pDetailPage.SelectedValueAsId().Value );
+
+            SetAttributeValue( "EntityType", entityType.Guid.ToString() );
+            SetAttributeValue( "DefaultCategory", category != null ? category.Guid.ToString() : string.Empty );
+            SetAttributeValue( "DetailPage", page != null ? page.Guid.ToString() : string.Empty );
+            SetAttributeValue( "LavaTemplate", ceLavaTemplate.Text );
+
+            mdlSettings.Hide();
+
+            ShowCategories();
         }
 
         #endregion
 
         #region Methods
 
-        private void LoadCategories()
+        /// <summary>
+        /// Load and show all the categories with the configured parameters.
+        /// </summary>
+        private void ShowCategories()
         {
             Guid? entityTypeGuid = GetAttributeValue( "EntityType" ).AsGuidOrNull();
 
@@ -111,6 +185,19 @@ namespace RockWeb.Plugins.com_rocklabs.Forums
                 List<Category> categories;
                 int? parentCategoryId = PageParameter( "categoryId" ).AsIntegerOrNull();
 
+                //
+                // Process the default category setting if we have not been provided one in the
+                // query string.
+                //
+                if ( !parentCategoryId.HasValue && !string.IsNullOrEmpty( GetAttributeValue( "DefaultCategory" ) ) )
+                {
+                    var category = CategoryCache.Read( GetAttributeValue( "DefaultCategory" ).AsGuid() );
+                    parentCategoryId = category != null ? ( int? ) category.Id : null;
+                }
+
+                //
+                // Get all child categories of the parent category or all root categories.
+                //
                 if ( parentCategoryId.HasValue )
                 {
                     categories = categoryService.Queryable()
@@ -126,10 +213,15 @@ namespace RockWeb.Plugins.com_rocklabs.Forums
                         .ToList();
                 }
 
+                //
+                // Setup lava merge fields.
+                //
                 var mergeFields = Rock.Lava.LavaHelper.GetCommonMergeFields( this.RockPage, this.CurrentPerson );
                 mergeFields.Add( "Categories", categories );
 
-                // add link to detail page
+                //
+                // Add link to detail page
+                //
                 Dictionary<string, object> linkedPages = new Dictionary<string, object>();
                 linkedPages.Add( "DetailPage", LinkedPageRoute( "DetailPage" ) );
                 mergeFields.Add( "LinkedPages", linkedPages );
@@ -142,6 +234,35 @@ namespace RockWeb.Plugins.com_rocklabs.Forums
                 lOutput.Text = string.Empty;
                 nbNotConfigured.Visible = true;
             }
+        }
+
+        /// <summary>
+        /// Show the custom settings modal dialog.
+        /// </summary>
+        protected override void ShowSettings()
+        {
+            var entityType = EntityTypeCache.Read( GetAttributeValue( "EntityType" ).AsGuid() );
+            var category = CategoryCache.Read( GetAttributeValue( "DefaultCategory" ).AsGuid() );
+            var page = PageCache.Read( GetAttributeValue( "DetailPage" ).AsGuid() );
+
+            pEntityType.SelectedEntityTypeId = entityType != null ? ( int? ) entityType.Id : null;
+            pDetailPage.SetValue( page != null ? ( int? ) page.Id : null );
+            ceLavaTemplate.Text = GetAttributeValue( "LavaTemplate" );
+
+            if ( entityType != null )
+            {
+                pDefaultCategory.EntityTypeId = entityType.Id;
+                pDefaultCategory.SetValue( category != null ? ( int? ) category.Id : null );
+                pDefaultCategory.Visible = true;
+            }
+            else
+            {
+                pDefaultCategory.EntityTypeName = string.Empty;
+                pDefaultCategory.SetValue( null );
+                pDefaultCategory.Visible = false;
+            }
+
+            mdlSettings.Show();
         }
 
         #endregion
