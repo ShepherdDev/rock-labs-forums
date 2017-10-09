@@ -13,8 +13,12 @@
 
                 <asp:Panel ID="pnlFollowing" runat="server" CssClass="panel-follow-status" data-toggle="tooltip" data-placement="top" title="Click to Follow"></asp:Panel>
             </div>
-            <div class="panel-heading" style="padding-top: 4px; padding-bottom: 4px;">
-                <strong><asp:Literal ID="lAuthorName" runat="server" /></strong> on <i><asp:Literal ID="lDatePosted" runat="server" /></i>
+            <div class="panel-heading clearfix" style="padding-top: 4px; padding-bottom: 4px;">
+                <span class="pull-right">
+                    <asp:Literal ID="lDatePosted" runat="server" />
+                </span>
+
+                <span><asp:Literal ID="lAuthorName" runat="server" /></span>
             </div>
 
             <div class="panel-body">
